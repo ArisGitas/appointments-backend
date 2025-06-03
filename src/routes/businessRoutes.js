@@ -4,12 +4,16 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
-export default function(pool) {
+export default function (pool) {
   const router = express.Router();
 
   // 🟢 Εγγραφή επιχείρησης
   router.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone, address, category } = req.body;
+
+    if (!name || !email || !password || !phone || !address || !category) {
+      return res.status(400).json({ message: 'Όλα τα πεδία είναι υποχρεωτικά' });
+    }
 
     try {
       const [existing] = await pool.query('SELECT id FROM businesses WHERE email = ?', [email]);
@@ -19,9 +23,11 @@ export default function(pool) {
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
+
       await pool.query(
-        'INSERT INTO businesses (name, email, password) VALUES (?, ?, ?)',
-        [name, email, hashedPassword]
+        `INSERT INTO businesses (name, email, password, phone, address, category)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [name, email, hashedPassword, phone, address, category]
       );
 
       res.status(201).json({ message: 'Εγγραφή επιτυχής' });
@@ -31,7 +37,7 @@ export default function(pool) {
     }
   });
 
-  // 🟡 Login επιχείρησης
+  // 🟡 Login επιχείρησης (παραμένει ίδιο)
   router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
