@@ -59,7 +59,8 @@ export default function (pool) {
         expiresIn: '2h',
       });
 
-      res.json({ message: 'Επιτυχής είσοδος', token });
+      res.json({ message: 'Επιτυχής είσοδος', token, businessId: business.id });
+
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Σφάλμα στον server' });
