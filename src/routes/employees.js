@@ -25,5 +25,22 @@ export default function (pool) {
     }
   });
 
+  // 🟢 ΝΕΟ: Λήψη υπαλλήλων για το business
+  router.get('/', verifyToken, async (req, res) => {
+    const businessId = req.businessId;
+
+    try {
+      const [rows] = await pool.query(
+        'SELECT id, name FROM employees WHERE business_id = ?',
+        [businessId]
+      );
+
+      res.status(200).json(rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Σφάλμα κατά την λήψη υπαλλήλων' });
+    }
+  });
+
   return router;
 }
