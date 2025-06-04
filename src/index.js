@@ -2,7 +2,9 @@ import express from 'express';
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
 import cors from 'cors';
+
 import businessRoutes from './routes/businessRoutes.js';
+import employeeRoutes from './routes/employees.js'; // ✅ νέο route
 
 dotenv.config();
 
@@ -12,7 +14,7 @@ const port = process.env.PORT || 3333;
 app.use(cors());
 app.use(express.json());
 
-// Δημιουργία σύνδεσης με βάση
+// 🔌 Δημιουργία connection pool
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
@@ -21,7 +23,7 @@ const pool = mysql.createPool({
   database: process.env.MYSQL_DATABASE,
 });
 
-// Δοκιμαστικό endpoint
+// 🔎 Test endpoint για σύνδεση DB
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT NOW() AS now');
@@ -32,9 +34,11 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-// Χρήση των routes
+// 🧭 Routes
 app.use('/api/business', businessRoutes(pool));
+app.use('/api/employees', employeeRoutes(pool)); // ✅ προσθήκη
 
+// 🚀 Start server
 app.listen(port, () => {
   console.log(`✅ Server listening at http://localhost:${port}`);
 });
