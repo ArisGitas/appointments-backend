@@ -14,7 +14,6 @@ export default function (pool) {
     }
 
     try {
-      // Βεβαιωνόμαστε ότι ο υπάλληλος ανήκει στην επιχείρηση
       const [employeeCheck] = await pool.query(
         'SELECT * FROM employees WHERE id = ? AND business_id = ?',
         [employeeId, businessId]
@@ -24,10 +23,8 @@ export default function (pool) {
         return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε' });
       }
 
-      // Διαγράφουμε όλα τα υπάρχοντα ωράρια του υπαλλήλου
       await pool.query('DELETE FROM schedules WHERE employee_id = ?', [employeeId]);
 
-      // Εισάγουμε το νέο ωράριο (υποστηρίζει πολλά blocks ανά ημέρα)
       for (const schedule of schedules) {
         const { dayOfWeek, intervals } = schedule;
 
@@ -50,13 +47,12 @@ export default function (pool) {
     }
   });
 
-  // 📥 Ανάκτηση ωραρίου υπαλλήλου
+  // 📥 Ανάκτηση σπαστού ωραρίου υπαλλήλου
   router.get('/:employeeId', verifyToken, async (req, res) => {
     const businessId = req.businessId;
     const { employeeId } = req.params;
 
     try {
-      // Έλεγχος αν ο υπάλληλος ανήκει στην επιχείρηση
       const [employeeCheck] = await pool.query(
         'SELECT * FROM employees WHERE id = ? AND business_id = ?',
         [employeeId, businessId]
@@ -71,7 +67,7 @@ export default function (pool) {
         [employeeId]
       );
 
-      // Ομαδοποίηση κατά ημέρα
+      
       const grouped = {};
       for (const row of rows) {
         const day = row.day_of_week;
@@ -84,7 +80,6 @@ export default function (pool) {
         });
       }
 
-      // Μετατροπή σε array για frontend συμβατότητα
       const result = Object.entries(grouped).map(([dayOfWeek, intervals]) => ({
         dayOfWeek: Number(dayOfWeek),
         intervals,
@@ -94,6 +89,88 @@ export default function (pool) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Σφάλμα κατά την ανάκτηση ωραρίου' });
+    }
+  });
+
+  // 🔹 Ανάκτηση ωραρίου ως απλές ώρες (για κουτάκια)
+  router.get('/:employeeId/schedule-hours', verifyToken, async (req, res) => {
+    const businessId = req.businessId;
+    const { employeeId } = req.params;
+
+    try {
+      const [employeeCheck] = await pool.query(
+        'SELECT * FROM employees WHERE id = ? AND business_id = ?',
+        [employeeId, businessId]
+      );
+
+      if (employeeCheck.length === 0) {
+        return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε' });
+      }
+
+      const [rows] = await pool.query(
+        'SELECT day_of_week, start_time FROM schedules WHERE employee_id = ? AND is_available = true ORDER BY day_of_week, start_time',
+        [employeeId]
+      );
+
+      const schedule = {};
+
+      for (const row of rows) {
+        const day = parseInt(row.day_of_week);
+        const hour = row.start_time.substring(0, 5); // "08:00"
+
+        if (!schedule[day]) schedule[day] = [];
+        schedule[day].push(hour);
+      }
+
+      res.status(200).json(schedule);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Σφάλμα κατά την ανάκτηση ωραρίου' });
+    }
+  });
+
+  // 🔸 Αποθήκευση απλών ωρών ανά ημέρα (από κουτάκια)
+  router.post('/:employeeId/schedule-hours', verifyToken, async (req, res) => {
+    const businessId = req.businessId;
+    const { employeeId } = req.params;
+    const schedule = req.body.schedule;
+
+    if (!schedule || typeof schedule !== 'object') {
+      return res.status(400).json({ message: 'Μη έγκυρο schedule' });
+    }
+
+    try {
+      const [employeeCheck] = await pool.query(
+        'SELECT * FROM employees WHERE id = ? AND business_id = ?',
+        [employeeId, businessId]
+      );
+
+      if (employeeCheck.length === 0) {
+        return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε' });
+      }
+
+      await pool.query('DELETE FROM schedules WHERE employee_id = ?', [employeeId]);
+
+      for (const [dayStr, hours] of Object.entries(schedule)) {
+        const day = parseInt(dayStr);
+
+        for (const hour of hours) {
+          const [h] = hour.split(':');
+          const startTime = `${h.padStart(2, '0')}:00:00`;
+          const endHour = String(Number(h) + 1).padStart(2, '0');
+          const endTime = `${endHour}:00:00`;
+
+          await pool.query(
+            'INSERT INTO schedules (employee_id, day_of_week, start_time, end_time, is_available) VALUES (?, ?, ?, ?, ?)',
+            [employeeId, day, startTime, endTime, true]
+          );
+        }
+      }
+
+      res.status(200).json({ message: 'Το ωράριο αποθηκεύτηκε' });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Σφάλμα κατά την αποθήκευση ωραρίου' });
     }
   });
 
