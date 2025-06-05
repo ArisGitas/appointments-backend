@@ -67,7 +67,7 @@ export default function (pool) {
         [employeeId]
       );
 
-      
+
       const grouped = {};
       for (const row of rows) {
         const day = row.day_of_week;
@@ -150,6 +150,8 @@ export default function (pool) {
       }
 
       await pool.query('DELETE FROM schedules WHERE employee_id = ?', [employeeId]);
+      console.log('SCHEDULE RECEIVED:', schedule);
+
 
       for (const [dayStr, hours] of Object.entries(schedule)) {
         const day = parseInt(dayStr);
