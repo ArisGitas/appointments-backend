@@ -34,11 +34,11 @@ export default function (pool) {
       const servicesWithAssignments = servicesRows.map(service => {
         const assignedEmployeeIds = assignmentsRows
           .filter(assignment => assignment.service_id === service.id)
-          .map(assignment => assignment.employee_id); // Returns an array of employee IDs
+          .map(assignment => assignment.employee_id);
 
         return {
           ...service,
-          assigned_employee_ids: assignedEmployeeIds, // Add the new field
+          assigned_employee_ids: assignedEmployeeIds,
         };
       });
 
@@ -103,10 +103,8 @@ export default function (pool) {
         return res.status(404).json({ message: 'Η υπηρεσία δεν βρέθηκε ή δεν έχετε εξουσιοδότηση' });
       }
 
-      // Διαγράφουμε τις αναθέσεις αυτής της υπηρεσίας από όλους τους υπαλλήλους
       await pool.query('DELETE FROM employee_services WHERE service_id = ?', [serviceId]);
 
-      // Διαγράφουμε την υπηρεσία
       const [deleteResult] = await pool.query('DELETE FROM services WHERE id = ?', [serviceId]);
 
       if (deleteResult.affectedRows === 0) {
@@ -129,7 +127,15 @@ export default function (pool) {
     const { packageId, employeeIds } = req.body;
     const businessId = req.businessId;
 
+    // --- Added console logs for debugging ---
+    console.log('Assign Service Request received:');
+    console.log('  packageId:', packageId);
+    console.log('  employeeIds:', employeeIds);
+    console.log('  businessId from token:', businessId);
+    // --- End console logs ---
+
     if (!packageId || !employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0) {
+      console.log('Validation failed: Missing packageId or employeeIds array.');
       return res.status(400).json({ message: 'Απαιτείται ID υπηρεσίας και ένας πίνακας ID υπαλλήλων' });
     }
 
@@ -139,6 +145,7 @@ export default function (pool) {
         [packageId, businessId]
       );
       if (serviceRows.length === 0) {
+        console.log('Validation failed: Service not found or not authorized.');
         return res.status(404).json({ message: 'Η υπηρεσία δεν βρέθηκε ή δεν έχετε εξουσιοδότηση' });
       }
 
@@ -147,19 +154,26 @@ export default function (pool) {
         [employeeIds, businessId]
       );
       if (employeeRows.length !== employeeIds.length) {
+        console.log('Validation failed: Some employees not found or not authorized. Found:', employeeRows.length, 'Expected:', employeeIds.length);
         return res.status(400).json({ message: 'Ένας ή περισσότεροι υπάλληλοι δεν βρέθηκαν ή δεν ανήκουν στην επιχείρησή σας' });
       }
 
       const values = employeeIds.map(empId => [empId, packageId]);
 
-      await pool.query(
-        'INSERT IGNORE INTO employee_services (employee_id, service_id) VALUES ?', // Changed table to employee_services
+      // --- Added console log for the query values ---
+      console.log('Attempting to insert into employee_services with values:', values);
+      // --- End console log ---
+
+      const [insertResult] = await pool.query( // Capture the result of the insert
+        'INSERT IGNORE INTO employee_services (employee_id, service_id) VALUES ?',
         [values]
       );
 
+      console.log('Insert result for employee_services:', insertResult); // Log insert result
+
       res.status(200).json({ message: 'Η υπηρεσία ανατέθηκε επιτυχώς σε υπαλλήλους' });
     } catch (error) {
-      console.error('Error assigning service:', error);
+      console.error('Error assigning service:', error); // This is the crucial log
       res.status(500).json({ message: 'Σφάλμα κατά την ανάθεση υπηρεσίας' });
     }
   });
@@ -181,7 +195,6 @@ export default function (pool) {
     }
 
     try {
-      // Ελέγχει αν η υπηρεσία ανήκει στην επιχείρηση και υπάρχει
       const [serviceRows] = await pool.query(
         'SELECT id FROM services WHERE id = ? AND business_id = ?',
         [serviceId, req.businessId]
@@ -190,14 +203,12 @@ export default function (pool) {
         return res.status(404).json({ message: 'Η υπηρεσία δεν βρέθηκε ή δεν έχετε εξουσιοδότηση' });
       }
 
-      // Ενημέρωση της υπηρεσίας
       const [result] = await pool.query(
         'UPDATE services SET title = ?, price = ?, duration = ? WHERE id = ? AND business_id = ?',
         [title, parseFloat(price), parseInt(duration), serviceId, req.businessId]
       );
 
       if (result.affectedRows === 0) {
-        // This case should ideally be caught by serviceRows check, but good for robustness
         return res.status(404).json({ message: 'Η υπηρεσία δεν βρέθηκε για ενημέρωση' });
       }
 
