@@ -4,7 +4,8 @@ import mysql from 'mysql2/promise';
 import cors from 'cors';
 
 import businessRoutes from './routes/businessRoutes.js';
-import employeeRoutes from './routes/employees.js'; // ✅ νέο route
+import employeeRoutes from './routes/employees.js';
+import employeeScheduleRoutes from './routes/employeeSchedule.js'; 
 
 dotenv.config();
 
@@ -36,7 +37,8 @@ app.get('/test-db', async (req, res) => {
 
 // 🧭 Routes
 app.use('/api/business', businessRoutes(pool));
-app.use('/api/employees', employeeRoutes(pool)); // ✅ προσθήκη
+app.use('/api/employees', employeeRoutes(pool));
+app.use('/api/employees', employeeScheduleRoutes(pool)); // ✅ Route για τα ωράρια
 
 // 🚀 Start server
 app.listen(port, () => {
