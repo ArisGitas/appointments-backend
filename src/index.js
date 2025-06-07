@@ -33,10 +33,12 @@ const pool = mysql.createPool({
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT NOW() AS now');
-    res.send(`✅ DB Connected! Server time: ${rows[0].now}`);
+    // ✅ Αλλαγή από res.send() σε res.json() για συνεπείς JSON απαντήσεις
+    res.json({ message: 'DB Connected!', serverTime: rows[0].now });
   } catch (error) {
     console.error('❌ DB Error:', error);
-    res.status(500).send('DB connection failed');
+    // ✅ Αλλαγή από res.send() σε res.json() για συνεπείς JSON απαντήσεις
+    res.status(500).json({ message: 'DB connection failed', error: error.message });
   }
 });
 
