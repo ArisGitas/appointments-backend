@@ -46,7 +46,7 @@ app.get('/test-db', async (req, res) => {
 app.use('/api/business', businessRoutes(pool)); // Business related routes
 app.use('/api/employees', employeeRoutes(pool)); // Employee related routes (including package assignments for employees)
 app.use('/api/employees', employeeScheduleRoutes(pool)); // Employee schedule related routes
-app.use('/api/packages', packageRoutes(pool)); // Package management related routes
+app.use('/api/services', packageRoutes(pool)); // ✅ Διορθώθηκε από '/api/packages' σε '/api/services'
 
 // 🚀 Start the server
 app.listen(port, () => {
