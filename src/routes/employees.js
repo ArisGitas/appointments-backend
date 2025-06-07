@@ -1,5 +1,5 @@
 import express from 'express';
-import verifyToken from '../middleware/verifyToken.js'; // Υποθέτουμε ότι υπάρχει αυτό το middleware
+import verifyToken from '../middleware/verifyToken.js';
 
 export default function (pool) {
   const router = express.Router();
@@ -25,7 +25,7 @@ export default function (pool) {
     }
   });
 
-  // 🟢 ΝΕΟ: Λήψη υπαλλήλων για το business
+  // 🟢 Λήψη υπαλλήλων για το business
   router.get('/', verifyToken, async (req, res) => {
     const businessId = req.businessId;
 
@@ -42,11 +42,11 @@ export default function (pool) {
     }
   });
 
-  // 👇 ΝΕΕΣ ΔΙΑΔΡΟΜΕΣ ΓΙΑ ΑΝΑΘΕΣΗ ΠΑΚΕΤΩΝ ΣΕ ΥΠΑΛΛΗΛΟΥΣ 👇
+  // 👇 ΔΙΑΔΡΟΜΕΣ ΓΙΑ ΑΝΑΘΕΣΗ ΥΠΗΡΕΣΙΩΝ (ΠΑΚΕΤΩΝ) ΣΕ ΥΠΑΛΛΗΛΟΥΣ 👇
 
   /**
    * @route GET /api/employees/:employeeId/packages
-   * @desc Ανάκτηση πακέτων που έχουν ανατεθεί σε έναν συγκεκριμένο υπάλληλο.
+   * @desc Ανάκτηση υπηρεσιών (πακέτων) που έχουν ανατεθεί σε έναν συγκεκριμένο υπάλληλο.
    * @access Private
    */
   router.get('/:employeeId/packages', verifyToken, async (req, res) => {
@@ -63,35 +63,35 @@ export default function (pool) {
         return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε ή δεν έχετε εξουσιοδότηση' });
       }
 
-      // 🤝 Ανάκτηση όλων των πακέτων που έχουν ανατεθεί σε αυτόν τον υπάλληλο
-      const [assignedPackages] = await pool.query(
-        `SELECT p.id, p.title, p.price, p.duration
-         FROM packages p
-         JOIN employee_packages ep ON p.id = ep.package_id
-         WHERE ep.employee_id = ? AND p.business_id = ?`,
+      // 🤝 Ανάκτηση όλων των υπηρεσιών που έχουν ανατεθεί σε αυτόν τον υπάλληλο
+      const [assignedServices] = await pool.query(
+        `SELECT s.id, s.title, s.price, s.duration
+         FROM services s
+         JOIN employee_services ep ON s.id = ep.service_id -- Changed from 'employee_packages' to 'employee_services' and 'package_id' to 'service_id'
+         WHERE ep.employee_id = ? AND s.business_id = ?`,
         [employeeId, businessId]
       );
 
-      res.status(200).json(assignedPackages);
+      res.status(200).json(assignedServices);
     } catch (error) {
-      console.error('Error fetching assigned packages for employee:', error);
-      res.status(500).json({ message: 'Σφάλμα κατά την ανάκτηση ανατεθειμένων πακέτων υπαλλήλου' });
+      console.error('Error fetching assigned services for employee:', error);
+      res.status(500).json({ message: 'Σφάλμα κατά την ανάκτηση ανατεθειμένων υπηρεσιών υπαλλήλου' });
     }
   });
 
   /**
    * @route POST /api/employees/:employeeId/packages
-   * @desc Ανάθεση/ενημέρωση πακέτων για έναν συγκεκριμένο υπάλληλο.
-   * Αντικαθιστά τις τρέχουσες αναθέσεις πακέτων του υπαλλήλου με την παρεχόμενη λίστα.
+   * @desc Ανάθεση/ενημέρωση υπηρεσιών (πακέτων) για έναν συγκεκριμένο υπάλληλο.
+   * Αντικαθιστά τις τρέχουσες αναθέσεις υπηρεσιών του υπαλλήλου με την παρεχόμενη λίστα.
    * @access Private
    */
   router.post('/:employeeId/packages', verifyToken, async (req, res) => {
     const { employeeId } = req.params;
-    const { packageIds } = req.body; // Πίνακας με IDs πακέτων
+    const { packageIds } = req.body; // Το όνομα 'packageIds' στο frontend είναι εντάξει
     const businessId = req.businessId;
 
     if (!Array.isArray(packageIds)) {
-      return res.status(400).json({ message: 'Τα Package IDs πρέπει να είναι πίνακας' });
+      return res.status(400).json({ message: 'Τα ID υπηρεσιών πρέπει να είναι πίνακας' });
     }
 
     try {
@@ -105,30 +105,30 @@ export default function (pool) {
       }
 
       // 🗑 Διαγράφουμε όλες τις υπάρχουσες αναθέσεις για αυτόν τον υπάλληλο
-      await pool.query('DELETE FROM employee_packages WHERE employee_id = ?', [employeeId]);
+      await pool.query('DELETE FROM employee_services WHERE employee_id = ?', [employeeId]); // Changed from 'employee_packages' to 'employee_services'
 
       // ➕ Εισάγουμε τις νέες αναθέσεις (αν υπάρχουν)
       if (packageIds.length > 0) {
-        // ✅ Προαιρετικός έλεγχος: Βεβαιωθείτε ότι όλα τα packageIds ανήκουν στην ίδια επιχείρηση
-        const [validPackages] = await pool.query(
-          'SELECT id FROM packages WHERE id IN (?) AND business_id = ?',
+        // ✅ Προαιρετικός έλεγχος: Βεβαιωθείτε ότι όλες οι υπηρεσίες ανήκουν στην ίδια επιχείρηση
+        const [validServices] = await pool.query(
+          'SELECT id FROM services WHERE id IN (?) AND business_id = ?',
           [packageIds, businessId]
         );
-        if (validPackages.length !== packageIds.length) {
-          return res.status(400).json({ message: 'Ένα ή περισσότερα ID πακέτων είναι μη έγκυρα ή δεν ανήκουν στην επιχείρησή σας' });
+        if (validServices.length !== packageIds.length) {
+          return res.status(400).json({ message: 'Ένα ή περισσότερα ID υπηρεσιών είναι μη έγκυρα ή δεν ανήκουν στην επιχείρησή σας' });
         }
 
-        const values = packageIds.map(pkgId => [employeeId, pkgId]);
+        const values = packageIds.map(serviceId => [employeeId, serviceId]);
         await pool.query(
-          'INSERT INTO employee_packages (employee_id, package_id) VALUES ?',
+          'INSERT INTO employee_services (employee_id, service_id) VALUES ?', // Changed from 'employee_packages' to 'employee_services' and 'package_id' to 'service_id'
           [values]
         );
       }
 
-      res.status(200).json({ message: 'Τα πακέτα υπαλλήλου ενημερώθηκαν επιτυχώς' });
+      res.status(200).json({ message: 'Οι υπηρεσίες υπαλλήλου ενημερώθηκαν επιτυχώς' });
     } catch (error) {
-      console.error('Error updating employee packages:', error);
-      res.status(500).json({ message: 'Σφάλμα κατά την ενημέρωση πακέτων υπαλλήλου' });
+      console.error('Error updating employee services:', error);
+      res.status(500).json({ message: 'Σφάλμα κατά την ενημέρωση υπηρεσιών υπαλλήλου' });
     }
   });
 
