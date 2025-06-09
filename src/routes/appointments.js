@@ -4,21 +4,8 @@ import verifyToken from '../middleware/verifyToken.js'; // Υποθέτουμε 
 export default function (pool) {
   const router = express.Router();
 
-  // Helper function to format Date object for MySQL DATETIME
-  const formatDateTimeForMySQL = (date) => {
-    if (!date) return null;
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return null; // Handle invalid dates
-
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  };
+  // Η βοηθητική συνάρτηση formatDateTimeForMySQL αφαιρέθηκε,
+  // καθώς το mysql2/promise μπορεί να χειριστεί απευθείας τα αντικείμενα Date.
 
   /**
    * @route GET /api/appointments
@@ -31,20 +18,20 @@ export default function (pool) {
 
     try {
       const [rows] = await pool.query(
-        `SELECT 
-           s.id, 
-           s.business_id, 
-           s.employee_id, 
+        `SELECT
+           s.id,
+           s.business_id,
+           s.employee_id,
            e.name AS employee_name,  -- Όνομα υπαλλήλου
-           s.service_id, 
+           s.service_id,
            svc.title AS service_title, -- Τίτλος υπηρεσίας
            svc.duration AS service_duration, -- Διάρκεια υπηρεσίας
-           s.client_name, 
-           s.client_contact, 
-           s.appointment_datetime, 
-           s.status, 
-           s.notes, 
-           s.created_at, 
+           s.client_name,
+           s.client_contact,
+           s.appointment_datetime,
+           s.status,
+           s.notes,
+           s.created_at,
            s.updated_at
          FROM schedules s
          LEFT JOIN employees e ON s.employee_id = e.id
@@ -65,7 +52,7 @@ export default function (pool) {
         serviceDuration: row.service_duration, // Include duration for end time calculation in frontend
         clientName: row.client_name,
         clientContact: row.client_contact,
-        appointmentDateTime: row.appointment_datetime, // MySQL DATETIME will be JS Date object
+        appointmentDateTime: row.appointment_datetime, // MySQL DATETIME θα είναι JS Date object
         status: row.status,
         notes: row.notes,
         createdAt: row.created_at,
@@ -92,9 +79,12 @@ export default function (pool) {
       return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα)' });
     }
 
-    // Convert ISO string to MySQL DATETIME format
-    const mysqlAppointmentDateTime = formatDateTimeForMySQL(appointmentDateTime);
-    if (!mysqlAppointmentDateTime) {
+    // Μετατροπή του ISO string σε αντικείμενο Date.
+    // Το mysql2/promise θα χειριστεί αυτόματα τη μορφοποίηση για τον τύπο DATETIME της MySQL.
+    const appointmentDateObject = new Date(appointmentDateTime);
+
+    // Έλεγχος για μη έγκυρη ημερομηνία
+    if (isNaN(appointmentDateObject.getTime())) {
         return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας ραντεβού.' });
     }
 
@@ -118,10 +108,10 @@ export default function (pool) {
       }
 
       const [result] = await pool.query(
-        `INSERT INTO schedules 
-         (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, status, notes) 
+        `INSERT INTO schedules
+         (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, status, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [businessId, employeeId, serviceId, clientName, clientContact || null, mysqlAppointmentDateTime, status || 'booked', notes || null]
+        [businessId, employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, status || 'booked', notes || null]
       );
 
       res.status(201).json({
@@ -156,9 +146,9 @@ export default function (pool) {
       return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα)' });
     }
 
-    // Convert ISO string to MySQL DATETIME format
-    const mysqlAppointmentDateTime = formatDateTimeForMySQL(appointmentDateTime);
-    if (!mysqlAppointmentDateTime) {
+    // Μετατροπή του ISO string σε αντικείμενο Date.
+    const appointmentDateObject = new Date(appointmentDateTime);
+    if (isNaN(appointmentDateObject.getTime())) {
         return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας ραντεβού.' });
     }
 
@@ -191,10 +181,10 @@ export default function (pool) {
       }
 
       const [result] = await pool.query(
-        `UPDATE schedules 
+        `UPDATE schedules
          SET employee_id = ?, service_id = ?, client_name = ?, client_contact = ?, appointment_datetime = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND business_id = ?`,
-        [employeeId, serviceId, clientName, clientContact || null, mysqlAppointmentDateTime, status || 'booked', notes || null, appointmentId, businessId]
+        [employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, status || 'booked', notes || null, appointmentId, businessId]
       );
 
       if (result.affectedRows === 0) {
