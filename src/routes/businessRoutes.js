@@ -2,8 +2,7 @@ import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
-// Βεβαιωθείτε ότι το JWT_SECRET φορτώνεται σωστά από τις μεταβλητές περιβάλλοντος
-const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key_please_change_in_production'; // Χρησιμοποιήστε ένα ισχυρό μυστικό κλειδί
+const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 
 export default function (pool) {
   const router = express.Router();
@@ -25,30 +24,16 @@ export default function (pool) {
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Εισαγωγή της επιχείρησης και λήψη του insertId
-      const [result] = await pool.query(
+      await pool.query(
         `INSERT INTO businesses (name, email, password, phone, address, category)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [name, email, hashedPassword, phone, address, category]
       );
 
-      const businessId = result.insertId; // Παίρνουμε το ID της νεοδημιουργηθείσας επιχείρησης
-
-      // Δημιουργία JWT token για την νέα επιχείρηση
-      const token = jwt.sign({ id: businessId, email: email }, JWT_SECRET, {
-        expiresIn: '2h', // Το token λήγει σε 2 ώρες
-      });
-
-      // Επιστροφή επιτυχούς απάντησης με token και businessId
-      res.status(201).json({ 
-        message: 'Εγγραφή επιτυχής',
-        token,         // Επιστρέφουμε το token
-        businessId     // Επιστρέφουμε το businessId
-      });
-
+      res.status(201).json({ message: 'Εγγραφή επιτυχής' });
     } catch (err) {
-      console.error('Registration error:', err); // Λεπτομερέστερο error logging
-      res.status(500).json({ message: 'Σφάλμα στον server κατά την εγγραφή' });
+      console.error(err);
+      res.status(500).json({ message: 'Σφάλμα στον server' });
     }
   });
 
@@ -77,8 +62,8 @@ export default function (pool) {
       res.json({ message: 'Επιτυχής είσοδος', token, businessId: business.id });
 
     } catch (err) {
-      console.error('Login error:', err); // Λεπτομερέστερο error logging
-      res.status(500).json({ message: 'Σφάλμα στον server κατά τη σύνδεση' });
+      console.error(err);
+      res.status(500).json({ message: 'Σφάλμα στον server' });
     }
   });
 
