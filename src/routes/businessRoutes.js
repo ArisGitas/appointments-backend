@@ -70,7 +70,7 @@ export default function (pool) {
                   // Εισαγωγή μόνο αν έχουμε από και έως (μπορείς να προσθέσεις παραπάνω validation)
                   if (from && to) {
                     await pool.query(
-                      `INSERT INTO employee_schedules_slots (employee_id, day, start_time, end_time)
+                      `INSERT INTO employee_schedule_slots (employee_id, day_of_week, from_hour, to_hour)
                        VALUES (?, ?, ?, ?)`,
                       [employeeId, day, from, to]
                     );
