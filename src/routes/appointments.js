@@ -4,6 +4,22 @@ import verifyToken from '../middleware/verifyToken.js'; // Υποθέτουμε 
 export default function (pool) {
   const router = express.Router();
 
+  // Helper function to format Date object for MySQL DATETIME
+  const formatDateTimeForMySQL = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return null; // Handle invalid dates
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  };
+
   /**
    * @route GET /api/appointments
    * @desc Ανάκτηση όλων των ραντεβού για την αυθεντικοποιημένη επιχείρηση,
@@ -76,6 +92,12 @@ export default function (pool) {
       return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα)' });
     }
 
+    // Convert ISO string to MySQL DATETIME format
+    const mysqlAppointmentDateTime = formatDateTimeForMySQL(appointmentDateTime);
+    if (!mysqlAppointmentDateTime) {
+        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας ραντεβού.' });
+    }
+
     try {
       // 1. Verify employee belongs to the business
       const [employeeRows] = await pool.query(
@@ -99,7 +121,7 @@ export default function (pool) {
         `INSERT INTO schedules 
          (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, status, notes) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [businessId, employeeId, serviceId, clientName, clientContact || null, appointmentDateTime, status || 'booked', notes || null]
+        [businessId, employeeId, serviceId, clientName, clientContact || null, mysqlAppointmentDateTime, status || 'booked', notes || null]
       );
 
       res.status(201).json({
@@ -109,7 +131,7 @@ export default function (pool) {
         serviceId,
         clientName,
         clientContact,
-        appointmentDateTime,
+        appointmentDateTime, // Keep original for response, or send mysql format
         status: status || 'booked',
         notes,
         message: 'Το ραντεβού προστέθηκε επιτυχώς'
@@ -132,6 +154,12 @@ export default function (pool) {
 
     if (!employeeId || !serviceId || !clientName || !appointmentDateTime) {
       return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα)' });
+    }
+
+    // Convert ISO string to MySQL DATETIME format
+    const mysqlAppointmentDateTime = formatDateTimeForMySQL(appointmentDateTime);
+    if (!mysqlAppointmentDateTime) {
+        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας ραντεβού.' });
     }
 
     try {
@@ -166,7 +194,7 @@ export default function (pool) {
         `UPDATE schedules 
          SET employee_id = ?, service_id = ?, client_name = ?, client_contact = ?, appointment_datetime = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND business_id = ?`,
-        [employeeId, serviceId, clientName, clientContact || null, appointmentDateTime, status || 'booked', notes || null, appointmentId, businessId]
+        [employeeId, serviceId, clientName, clientContact || null, mysqlAppointmentDateTime, status || 'booked', notes || null, appointmentId, businessId]
       );
 
       if (result.affectedRows === 0) {
