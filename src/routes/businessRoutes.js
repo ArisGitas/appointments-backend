@@ -7,26 +7,31 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key';
 export default function (pool) {
   const router = express.Router();
 
+  // Εγγραφή επιχείρησης με υπαλλήλους και υπηρεσίες
   router.post('/register', async (req, res) => {
     const {
-      name, email, password, phone, address, category,
-      employees = [], // από frontend
-      services = []
+      name,
+      email,
+      password,
+      phone,
+      address,
+      category,
+      employees,
+      services,
     } = req.body;
 
-    // Έλεγχος υποχρεωτικών πεδίων επιχείρησης
     if (!name || !email || !password || !phone || !address || !category) {
       return res.status(400).json({ message: 'Όλα τα πεδία είναι υποχρεωτικά' });
     }
 
     try {
-      // Έλεγχος αν υπάρχει ήδη το email
+      // Έλεγχος αν υπάρχει ήδη email
       const [existing] = await pool.query('SELECT id FROM businesses WHERE email = ?', [email]);
       if (existing.length > 0) {
         return res.status(400).json({ message: 'Το email χρησιμοποιείται ήδη' });
       }
 
-      // Hash password
+      // Κρυπτογράφηση κωδικού
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Εισαγωγή επιχείρησης
@@ -39,34 +44,38 @@ export default function (pool) {
       const businessId = result.insertId;
 
       // Εισαγωγή υπαλλήλων και ωραρίων
-      for (const emp of employees) {
-        const { name: empName, schedule } = emp;
-        if (!empName) continue;
+      if (Array.isArray(employees)) {
+        for (const emp of employees) {
+          const { name: empName, schedule } = emp;
 
-        const [empResult] = await pool.query(
-          'INSERT INTO employees (business_id, name) VALUES (?, ?)',
-          [businessId, empName]
-        );
+          if (!empName) continue; // Skip if no employee name
 
-        const employeeId = empResult.insertId;
+          // Εισαγωγή υπαλλήλου στον πίνακα employees
+          const [empResult] = await pool.query(
+            `INSERT INTO employees (business_id, name) VALUES (?, ?)`,
+            [businessId, empName]
+          );
 
-        // schedule είναι αντικείμενο { day: [{from, to}, ...], ... }
-        if (schedule && typeof schedule === 'object') {
-          for (const day of Object.keys(schedule)) {
-            const slots = schedule[day];
-            if (!Array.isArray(slots)) continue;
+          const employeeId = empResult.insertId;
 
-            for (const slot of slots) {
-              const fromTime = slot.from || null;
-              const toTime = slot.to || null;
+          // Εισαγωγή ωραρίων για κάθε μέρα
+          if (schedule && typeof schedule === 'object') {
+            for (const day in schedule) {
+              const slots = schedule[day];
+              if (Array.isArray(slots)) {
+                for (const slot of slots) {
+                  const from = slot.from || null;
+                  const to = slot.to || null;
 
-              // Αν υπάρχουν έγκυρες ώρες, εισαγωγή
-              if (fromTime && toTime) {
-                await pool.query(
-                  `INSERT INTO employee_schedules (employee_id, day, from_time, to_time)
-                   VALUES (?, ?, ?, ?)`,
-                  [employeeId, day, fromTime, toTime]
-                );
+                  // Εισαγωγή μόνο αν έχουμε από και έως (μπορείς να προσθέσεις παραπάνω validation)
+                  if (from && to) {
+                    await pool.query(
+                      `INSERT INTO employee_schedules (employee_id, day, start_time, end_time)
+                       VALUES (?, ?, ?, ?)`,
+                      [employeeId, day, from, to]
+                    );
+                  }
+                }
               }
             }
           }
@@ -74,21 +83,49 @@ export default function (pool) {
       }
 
       // Εισαγωγή υπηρεσιών
-      for (const svc of services) {
-        const { title, price, duration } = svc;
-        if (!title || price == null || duration == null) continue;
+      if (Array.isArray(services)) {
+        for (const svc of services) {
+          const { title, price, duration } = svc;
+          if (!title || !price || !duration) continue;
 
-        await pool.query(
-          `INSERT INTO services (business_id, title, price, duration)
-           VALUES (?, ?, ?, ?)`,
-          [businessId, title, price, duration]
-        );
+          await pool.query(
+            `INSERT INTO services (business_id, title, price, duration)
+             VALUES (?, ?, ?, ?)`,
+            [businessId, title, price, duration]
+          );
+        }
       }
 
-      // Δημιουργία JWT token
-      const token = jwt.sign({ id: businessId, email }, JWT_SECRET, { expiresIn: '2h' });
+      res.status(201).json({ message: 'Εγγραφή επιτυχής', businessId });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Σφάλμα στον server' });
+    }
+  });
 
-      res.status(201).json({ message: 'Εγγραφή επιτυχής', token, businessId });
+  // Login (ίδιο με πριν)
+  router.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+      const [users] = await pool.query('SELECT * FROM businesses WHERE email = ?', [email]);
+
+      if (users.length === 0) {
+        return res.status(400).json({ message: 'Λανθασμένο email ή κωδικός' });
+      }
+
+      const business = users[0];
+      const match = await bcrypt.compare(password, business.password);
+
+      if (!match) {
+        return res.status(400).json({ message: 'Λανθασμένο email ή κωδικός' });
+      }
+
+      const token = jwt.sign({ id: business.id, email: business.email }, JWT_SECRET, {
+        expiresIn: '2h',
+      });
+
+      res.json({ message: 'Επιτυχής είσοδος', token, businessId: business.id });
 
     } catch (err) {
       console.error(err);

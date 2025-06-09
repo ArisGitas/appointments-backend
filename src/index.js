@@ -5,10 +5,10 @@ import cors from 'cors';
 
 // Import all your route files
 import businessRoutes from './routes/businessRoutes.js';
-import employeeRoutes from './routes/employees.js'; // Υπάλληλοι
-import employeeScheduleRoutes from './routes/employeeSchedule.js'; // Ωράρια υπαλλήλων
-import packageRoutes from './routes/packageRoutes.js'; // Διαχείριση πακέτων
-import appointmentsRoutes from './routes/appointments.js'; // Ραντεβού
+import employeeRoutes from './routes/employees.js'; // Υποθέτουμε ότι αυτό το αρχείο περιέχει τις διαδρομές υπαλλήλων (συμπεριλαμβανομένης της ανάθεσης πακέτων)
+import employeeScheduleRoutes from './routes/employeeSchedule.js'; // Διαδρομές για το ωράριο υπαλλήλων
+import packageRoutes from './routes/packageRoutes.js'; // Διαδρομές για τη διαχείριση πακέτων
+import appointmentsRoutes from './routes/appointments.js'; // ✅ Νέα εισαγωγή για τα ραντεβού
 
 dotenv.config();
 
@@ -18,7 +18,7 @@ const port = process.env.PORT || 3333;
 app.use(cors()); // Enable CORS for all origins
 app.use(express.json()); // Middleware to parse JSON request bodies
 
-// Δημιουργία pool σύνδεσης με τη βάση δεδομένων
+// 🔌 Create a database connection pool
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
@@ -30,42 +30,27 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Test endpoint για έλεγχο σύνδεσης με τη βάση
+// 🔎 Test endpoint for database connection
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT NOW() AS now');
+    // ✅ Αλλαγή από res.send() σε res.json() για συνεπείς JSON απαντήσεις
     res.json({ message: 'DB Connected!', serverTime: rows[0].now });
   } catch (error) {
     console.error('❌ DB Error:', error);
+    // ✅ Αλλαγή από res.send() σε res.json() για συνεπείς JSON απαντήσεις
     res.status(500).json({ message: 'DB connection failed', error: error.message });
   }
 });
 
-// Routes με ξεχωριστά base paths
-app.use('/api/business', businessRoutes(pool));          // Επιχειρήσεις
-app.use('/api/employees', employeeRoutes(pool));          // Υπάλληλοι
-app.use('/api/employee-schedule', employeeScheduleRoutes(pool));  // Ωράρια υπαλλήλων
-app.use('/api/services', packageRoutes(pool));            // Πακέτα υπηρεσιών
-app.use('/api/appointments', appointmentsRoutes(pool));   // Ραντεβού
+// 🧭 Use your routes
+app.use('/api/business', businessRoutes(pool)); // Business related routes
+app.use('/api/employees', employeeRoutes(pool)); // Employee related routes (including package assignments for employees)
+app.use('/api/employees', employeeScheduleRoutes(pool)); // Employee schedule related routes
+app.use('/api/services', packageRoutes(pool)); // ✅ Διορθώθηκε από '/api/packages' σε '/api/services'
+app.use('/api/appointments', appointmentsRoutes(pool)); // ✅ Νέα διαδρομή για τα ραντεβού
 
-// Global error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Global error handler:', err.stack);
-  res.status(500).json({ message: 'Internal server error', error: err.message });
-});
-
-// Optional: Capture process termination signals
-process.on('SIGTERM', () => {
-  console.log('Process received SIGTERM, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('Process received SIGINT (Ctrl+C), shutting down gracefully');
-  process.exit(0);
-});
-
-// Εκκίνηση του server
+// 🚀 Start the server
 app.listen(port, () => {
   console.log(`✅ Server listening at http://localhost:${port}`);
 });
