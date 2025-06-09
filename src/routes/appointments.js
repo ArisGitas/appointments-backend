@@ -4,9 +4,6 @@ import verifyToken from '../middleware/verifyToken.js'; // Υποθέτουμε 
 export default function (pool) {
   const router = express.Router();
 
-  // Η βοηθητική συνάρτηση formatDateTimeForMySQL αφαιρέθηκε,
-  // καθώς το mysql2/promise μπορεί να χειριστεί απευθείας τα αντικείμενα Date.
-
   /**
    * @route GET /api/appointments
    * @desc Ανάκτηση όλων των ραντεβού για την αυθεντικοποιημένη επιχείρηση,
@@ -29,6 +26,7 @@ export default function (pool) {
            s.client_name,
            s.client_contact,
            s.appointment_datetime,
+           s.appointment_end_datetime, -- ✅ Νέο πεδίο: Ώρα λήξης ραντεβού
            s.status,
            s.notes,
            s.created_at,
@@ -49,10 +47,11 @@ export default function (pool) {
         employeeName: row.employee_name,
         serviceId: row.service_id,
         serviceTitle: row.service_title,
-        serviceDuration: row.service_duration, // Include duration for end time calculation in frontend
+        serviceDuration: row.service_duration,
         clientName: row.client_name,
         clientContact: row.client_contact,
         appointmentDateTime: row.appointment_datetime, // MySQL DATETIME θα είναι JS Date object
+        appointmentEndDateTime: row.appointment_end_datetime, // ✅ Νέο πεδίο
         status: row.status,
         notes: row.notes,
         createdAt: row.created_at,
@@ -72,20 +71,24 @@ export default function (pool) {
    * @access Private
    */
   router.post('/add', verifyToken, async (req, res) => {
-    const { employeeId, serviceId, clientName, clientContact, appointmentDateTime, status, notes } = req.body;
+    const { employeeId, serviceId, clientName, clientContact, appointmentDateTime, appointmentEndDateTime, status, notes } = req.body; // ✅ Νέο πεδίο: appointmentEndDateTime
     const businessId = req.businessId;
 
     if (!employeeId || !serviceId || !clientName || !appointmentDateTime) {
-      return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα)' });
+      return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα έναρξης)' });
     }
 
-    // Μετατροπή του ISO string σε αντικείμενο Date.
-    // Το mysql2/promise θα χειριστεί αυτόματα τη μορφοποίηση για τον τύπο DATETIME της MySQL.
+    // Μετατροπή των ISO string σε αντικείμενα Date.
     const appointmentDateObject = new Date(appointmentDateTime);
+    const appointmentEndDateObject = appointmentEndDateTime ? new Date(appointmentEndDateTime) : null; // ✅ Μετατροπή και του end_datetime
 
-    // Έλεγχος για μη έγκυρη ημερομηνία
+    // Έλεγχος για μη έγκυρη ημερομηνία έναρξης
     if (isNaN(appointmentDateObject.getTime())) {
-        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας ραντεβού.' });
+        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας έναρξης ραντεβού.' });
+    }
+    // Έλεγχος για μη έγκυρη ημερομηνία λήξης αν παρέχεται
+    if (appointmentEndDateObject && isNaN(appointmentEndDateObject.getTime())) {
+        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας λήξης ραντεβού.' });
     }
 
     try {
@@ -109,9 +112,9 @@ export default function (pool) {
 
       const [result] = await pool.query(
         `INSERT INTO schedules
-         (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, status, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [businessId, employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, status || 'booked', notes || null]
+         (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, appointment_end_datetime, status, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, appointmentEndDateObject, status || 'booked', notes || null] // ✅ Προσθήκη appointmentEndDateObject
       );
 
       res.status(201).json({
@@ -121,7 +124,8 @@ export default function (pool) {
         serviceId,
         clientName,
         clientContact,
-        appointmentDateTime, // Keep original for response, or send mysql format
+        appointmentDateTime,
+        appointmentEndDateTime, // ✅ Νέο πεδίο στο response
         status: status || 'booked',
         notes,
         message: 'Το ραντεβού προστέθηκε επιτυχώς'
@@ -139,17 +143,24 @@ export default function (pool) {
    */
   router.put('/:appointmentId', verifyToken, async (req, res) => {
     const { appointmentId } = req.params;
-    const { employeeId, serviceId, clientName, clientContact, appointmentDateTime, status, notes } = req.body;
+    const { employeeId, serviceId, clientName, clientContact, appointmentDateTime, appointmentEndDateTime, status, notes } = req.body; // ✅ Νέο πεδίο: appointmentEndDateTime
     const businessId = req.businessId;
 
     if (!employeeId || !serviceId || !clientName || !appointmentDateTime) {
-      return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα)' });
+      return res.status(400).json({ message: 'Παρακαλώ συμπληρώστε όλα τα απαιτούμενα πεδία (υπάλληλος, υπηρεσία, πελάτης, ημερομηνία/ώρα έναρξης)' });
     }
 
-    // Μετατροπή του ISO string σε αντικείμενο Date.
+    // Μετατροπή των ISO string σε αντικείμενα Date.
     const appointmentDateObject = new Date(appointmentDateTime);
+    const appointmentEndDateObject = appointmentEndDateTime ? new Date(appointmentEndDateTime) : null; // ✅ Μετατροπή και του end_datetime
+
+    // Έλεγχος για μη έγκυρη ημερομηνία έναρξης
     if (isNaN(appointmentDateObject.getTime())) {
-        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας ραντεβού.' });
+        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας έναρξης ραντεβού.' });
+    }
+    // Έλεγχος για μη έγκυρη ημερομηνία λήξης αν παρέχεται
+    if (appointmentEndDateObject && isNaN(appointmentEndDateObject.getTime())) {
+        return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας/ώρας λήξης ραντεβού.' });
     }
 
     try {
@@ -182,9 +193,9 @@ export default function (pool) {
 
       const [result] = await pool.query(
         `UPDATE schedules
-         SET employee_id = ?, service_id = ?, client_name = ?, client_contact = ?, appointment_datetime = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+         SET employee_id = ?, service_id = ?, client_name = ?, client_contact = ?, appointment_datetime = ?, appointment_end_datetime = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND business_id = ?`,
-        [employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, status || 'booked', notes || null, appointmentId, businessId]
+        [employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, appointmentEndDateObject, status || 'booked', notes || null, appointmentId, businessId] // ✅ Προσθήκη appointmentEndDateObject
       );
 
       if (result.affectedRows === 0) {
