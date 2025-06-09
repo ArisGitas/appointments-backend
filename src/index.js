@@ -8,6 +8,7 @@ import businessRoutes from './routes/businessRoutes.js';
 import employeeRoutes from './routes/employees.js'; // Υποθέτουμε ότι αυτό το αρχείο περιέχει τις διαδρομές υπαλλήλων (συμπεριλαμβανομένης της ανάθεσης πακέτων)
 import employeeScheduleRoutes from './routes/employeeSchedule.js'; // Διαδρομές για το ωράριο υπαλλήλων
 import packageRoutes from './routes/packageRoutes.js'; // Διαδρομές για τη διαχείριση πακέτων
+import appointmentsRoutes from './routes/appointments.js'; // ✅ Νέα εισαγωγή για τα ραντεβού
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ app.use('/api/business', businessRoutes(pool)); // Business related routes
 app.use('/api/employees', employeeRoutes(pool)); // Employee related routes (including package assignments for employees)
 app.use('/api/employees', employeeScheduleRoutes(pool)); // Employee schedule related routes
 app.use('/api/services', packageRoutes(pool)); // ✅ Διορθώθηκε από '/api/packages' σε '/api/services'
+app.use('/api/appointments', appointmentsRoutes(pool)); // ✅ Νέα διαδρομή για τα ραντεβού
 
 // 🚀 Start the server
 app.listen(port, () => {
