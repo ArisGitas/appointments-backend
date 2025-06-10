@@ -76,7 +76,7 @@ export default function (pool) {
                   if (from && to) {
                     await pool.query(
                       `INSERT INTO employee_schedule_slots (employee_id, day_of_week, from_hour, to_hour)
-                         VALUES (?, ?, ?, ?)`,
+                           VALUES (?, ?, ?, ?)`,
                       [employeeId, day, from, to]
                     );
                   }
@@ -102,8 +102,9 @@ export default function (pool) {
         }
       }
 
-      // *** Η ΣΗΜΑΝΤΙΚΗ ΔΙΟΡΘΩΣΗ ΕΔΩ: Δημιουργία και επιστροφή JWT token ***
-      const token = jwt.sign({ id: businessId, email: email }, JWT_SECRET, {
+      // ΔΙΟΡΘΩΜΕΝΟ JWT payload για το /register endpoint
+      const token = jwt.sign({ businessId: businessId, email: email }, JWT_SECRET, {
+      //                           ^^^^^^^^^^^ <-- Χρησιμοποιούμε 'businessId' για συνέπεια
         expiresIn: '2h', // Το token λήγει σε 2 ώρες
       });
 
@@ -116,7 +117,7 @@ export default function (pool) {
     }
   });
 
-  // Endpoint Σύνδεσης (Login) - Παραμένει το ίδιο, καθώς ήταν ήδη σωστό
+  // Endpoint Σύνδεσης (Login) - Παραμένει το ίδιο, αλλά με ενημερωμένο JWT payload
   router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -134,7 +135,9 @@ export default function (pool) {
         return res.status(400).json({ message: 'Λανθασμένο email ή κωδικός.' });
       }
 
-      const token = jwt.sign({ id: business.id, email: business.email }, JWT_SECRET, {
+      // ΔΙΟΡΘΩΜΕΝΟ JWT payload για το /login endpoint
+      const token = jwt.sign({ businessId: business.id, email: business.email }, JWT_SECRET, {
+      //                           ^^^^^^^^^^^ <-- Χρησιμοποιούμε 'businessId' για συνέπεια
         expiresIn: '2h', // Το token λήγει σε 2 ώρες
       });
 
