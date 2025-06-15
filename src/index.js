@@ -9,7 +9,6 @@ import employeeRoutes from './routes/employees.js';
 import employeeScheduleRoutes from './routes/employeeSchedule.js';
 import packageRoutes from './routes/packageRoutes.js';
 import appointmentsRoutes from './routes/appointments.js';
-import accountRoutes from './routes/accountRoutes.js'; // Νέα εισαγωγή: routes για τον λογαριασμό
 
 dotenv.config();
 
@@ -45,10 +44,9 @@ app.get('/test-db', async (req, res) => {
 // 🧭 Use your routes
 app.use('/api/business', businessRoutes(pool));
 app.use('/api/employees', employeeRoutes(pool));
-app.use('/api/employees', employeeScheduleRoutes(pool)); // Αυτό το route χρησιμοποιεί επίσης το '/api/employees' prefix.
+app.use('/api/employees', employeeScheduleRoutes(pool));
 app.use('/api/services', packageRoutes(pool));
 app.use('/api/appointments', appointmentsRoutes(pool));
-app.use('/api/account', accountRoutes(pool)); // Νέα χρήση: routes για τον λογαριασμό κάτω από το /api/account
 
 // 🚀 Start the server
 app.listen(port, () => {
