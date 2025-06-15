@@ -1,7 +1,7 @@
 // routes/accountRoutes.js
 import express from 'express';
 import bcrypt from 'bcrypt'; // Για την περίπτωση που θέλετε να αλλάξετε και κωδικό
-import { protect } from '../middleware/auth.js'; // Εισάγουμε το middleware προστασίας
+import verifyToken from '../middleware/verifyToken.js'; // Υποθέτουμε ότι υπάρχει αυτό το middleware
 
 export default function (pool) {
   const router = express.Router();
