@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 // στην εγγραφή και τη σύνδεση.
 const JWT_SECRET = process.env.JWT_SECRET || 'SUPER_DIP_SECRET_KEY_PLEASE_CHANGE_ME_IN_PRODUCTION';
 
-const protect = (req, res, next) => {
+const verifyToken = (req, res, next) => {
   let token;
 
   // Ελέγχουμε αν υπάρχει το Authorization header και ξεκινάει με 'Bearer'
@@ -43,4 +43,4 @@ const protect = (req, res, next) => {
   }
 };
 
-export { protect }; // Εξάγουμε τη συνάρτηση ως ονομαστικό export
+export { verifyToken  }; // Εξάγουμε τη συνάρτηση ως ονομαστικό export
