@@ -9,7 +9,7 @@ export default function (pool) {
   // --- 1. Ανάκτηση Προφίλ Επιχείρησης ---
   // GET /api/account/profile
   // Απαιτεί authentication (token)
-  router.get('/profile', protect, async (req, res) => {
+  router.get('/profile', verifyToken, async (req, res) => {
     const businessId = req.businessId; // Το businessId παρέχεται από το middleware
 
     try {
@@ -34,7 +34,7 @@ export default function (pool) {
   // --- 2. Ενημέρωση Προφίλ Επιχείρησης ---
   // PUT /api/account/profile
   // Απαιτεί authentication (token)
-  router.put('/profile', protect, async (req, res) => {
+  router.put('/profile', verifyToken, async (req, res) => {
     const businessId = req.businessId;
     const { name, email, phone, address, category, currentPassword, newPassword } = req.body;
 
@@ -100,7 +100,7 @@ export default function (pool) {
   // Απαιτεί authentication (token)
   // ΠΡΟΣΟΧΗ: Αυτό θα διαγράψει ΟΛΑ τα σχετικά δεδομένα. Χρειάζεστε CASCADE DELETE στα foreign keys
   // ή να διαγράψετε χειροκίνητα τους υπαλλήλους, ωράρια, υπηρεσίες, ραντεβού κ.λπ.
-  router.delete('/delete', protect, async (req, res) => {
+  router.delete('/delete', verifyToken, async (req, res) => {
     const businessId = req.businessId;
 
     try {
