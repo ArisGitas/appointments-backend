@@ -16,26 +16,26 @@ export default function (pool) {
     try {
       const [rows] = await pool.query(
         `SELECT
-           s.id,
-           s.business_id,
-           s.employee_id,
-           e.name AS employee_name,  -- Όνομα υπαλλήλου
-           s.service_id,
-           svc.title AS service_title, -- Τίτλος υπηρεσίας
-           svc.duration AS service_duration, -- Διάρκεια υπηρεσίας
-           s.client_name,
-           s.client_contact,
-           s.appointment_datetime,
-           s.appointment_end_datetime, -- ✅ Νέο πεδίο: Ώρα λήξης ραντεβού
-           s.status,
-           s.notes,
-           s.created_at,
-           s.updated_at
-         FROM schedules s
-         LEFT JOIN employees e ON s.employee_id = e.id
-         LEFT JOIN services svc ON s.service_id = svc.id
-         WHERE s.business_id = ?
-         ORDER BY s.appointment_datetime ASC`,
+            s.id,
+            s.business_id,
+            s.employee_id,
+            e.name AS employee_name,   -- Όνομα υπαλλήλου
+            s.service_id,
+            svc.title AS service_title, -- Τίτλος υπηρεσίας
+            svc.duration AS service_duration, -- Διάρκεια υπηρεσίας
+            s.client_name,
+            s.client_contact,
+            s.appointment_datetime,
+            s.appointment_end_datetime, -- ✅ Νέο πεδίο: Ώρα λήξης ραντεβού
+            s.status,
+            s.notes,
+            s.created_at,
+            s.updated_at
+          FROM schedules s
+          LEFT JOIN employees e ON s.employee_id = e.id
+          LEFT JOIN services svc ON s.service_id = svc.id
+          WHERE s.business_id = ?
+          ORDER BY s.appointment_datetime ASC`,
         [businessId]
       );
 
@@ -112,8 +112,8 @@ export default function (pool) {
 
       const [result] = await pool.query(
         `INSERT INTO schedules
-         (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, appointment_end_datetime, status, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (business_id, employee_id, service_id, client_name, client_contact, appointment_datetime, appointment_end_datetime, status, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [businessId, employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, appointmentEndDateObject, status || 'booked', notes || null] // ✅ Προσθήκη appointmentEndDateObject
       );
 
@@ -193,8 +193,8 @@ export default function (pool) {
 
       const [result] = await pool.query(
         `UPDATE schedules
-         SET employee_id = ?, service_id = ?, client_name = ?, client_contact = ?, appointment_datetime = ?, appointment_end_datetime = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ? AND business_id = ?`,
+          SET employee_id = ?, service_id = ?, client_name = ?, client_contact = ?, appointment_datetime = ?, appointment_end_datetime = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND business_id = ?`,
         [employeeId, serviceId, clientName, clientContact || null, appointmentDateObject, appointmentEndDateObject, status || 'booked', notes || null, appointmentId, businessId] // ✅ Προσθήκη appointmentEndDateObject
       );
 
@@ -242,6 +242,38 @@ export default function (pool) {
     } catch (error) {
       console.error('Error deleting appointment:', error);
       res.status(500).json({ message: 'Σφάλμα κατά τη διαγραφή ραντεβού' });
+    }
+  });
+
+  /**
+   * @route POST /api/appointments/deleteOld
+   * @desc Διαγραφή ραντεβού παλαιότερων από συγκεκριμένη ημερομηνία για την αυθεντικοποιημένη επιχείρηση.
+   * @access Private
+   */
+  router.post('/deleteOld', verifyToken, async (req, res) => {
+    const { cutoffDate } = req.body;
+    const businessId = req.businessId;
+
+    if (!cutoffDate) {
+      return res.status(400).json({ message: 'Η ημερομηνία αποκοπής (cutoffDate) είναι απαραίτητη.' });
+    }
+
+    const cutoffDateObject = new Date(cutoffDate);
+
+    if (isNaN(cutoffDateObject.getTime())) {
+      return res.status(400).json({ message: 'Μη έγκυρη μορφή ημερομηνίας αποκοπής.' });
+    }
+
+    try {
+      const [result] = await pool.query(
+        'DELETE FROM schedules WHERE business_id = ? AND appointment_datetime < ?',
+        [businessId, cutoffDateObject]
+      );
+
+      res.status(200).json({ message: `Διαγράφηκαν ${result.affectedRows} παλιά ραντεβού.` });
+    } catch (error) {
+      console.error('Error deleting old appointments:', error);
+      res.status(500).json({ message: 'Σφάλμα κατά τη διαγραφή παλιών ραντεβού.' });
     }
   });
 
