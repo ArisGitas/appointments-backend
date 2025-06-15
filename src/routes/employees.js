@@ -1,6 +1,5 @@
 import express from 'express';
-import verifyToken from '../middleware/verifyToken.js';
-
+import { verifyToken } from '../middleware/verifyToken.js';
 export default function (pool) {
   const router = express.Router();
 
