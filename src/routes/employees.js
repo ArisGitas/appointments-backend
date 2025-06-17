@@ -1,5 +1,6 @@
 import express from 'express';
 import verifyToken from '../middleware/verifyToken.js';
+
 export default function (pool) {
   const router = express.Router();
 
@@ -13,11 +14,11 @@ export default function (pool) {
     }
 
     try {
-      const [result] = await pool.query( // Added result capture to get insertId
+      const [result] = await pool.query(
         'INSERT INTO employees (name, business_id) VALUES (?, ?)',
         [name, businessId]
       );
-      res.status(201).json({ id: result.insertId, name, message: 'Ο υπάλληλος προστέθηκε' }); // Return ID
+      res.status(201).json({ id: result.insertId, name, message: 'Ο υπάλληλος προστέθηκε' });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Σφάλμα κατά την προσθήκη υπαλλήλου' });
@@ -41,7 +42,88 @@ export default function (pool) {
     }
   });
 
-  // 👇 ΔΙΑΔΡΟΜΕΣ ΓΙΑ ΑΝΑΘΕΣΗ ΥΠΗΡΕΣΙΩΝ (ΠΑΚΕΤΩΝ) ΣΕ ΥΠΑΛΛΗΛΟΥΣ 👇
+  // 👇 ΝΕΟ: Διαγραφή υπαλλήλου
+  /**
+   * @route DELETE /api/employees/:employeeId
+   * @desc Διαγραφή ενός υπαλλήλου και των ανατεθειμένων υπηρεσιών του.
+   * @access Private
+   */
+router.delete('/:employeeId', verifyToken, async (req, res) => {
+  const { employeeId } = req.params;
+  const businessId = req.businessId;
+
+  try {
+    // 1. Ελέγχουμε αν ο υπάλληλος ανήκει στην επιχείρηση
+    const [employeeCheck] = await pool.query(
+      'SELECT id FROM employees WHERE id = ? AND business_id = ?',
+      [employeeId, businessId]
+    );
+    if (employeeCheck.length === 0) {
+      return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε ή δεν έχετε εξουσιοδότηση.' });
+    }
+
+    // 2. Διαγράφουμε πρώτα όλες τις αναθέσεις υπηρεσιών που έχει ο υπάλληλος
+    await pool.query('DELETE FROM employee_services WHERE employee_id = ?', [employeeId]);
+
+    // 3. Διαγράφουμε τον υπάλληλο
+    const [result] = await pool.query('DELETE FROM employees WHERE id = ?', [employeeId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε.' });
+    }
+
+    res.status(200).json({ message: 'Ο υπάλληλος διαγράφηκε επιτυχώς.' });
+  } catch (err) {
+    console.error('Error deleting employee:', err);
+    res.status(500).json({ message: 'Σφάλμα κατά τη διαγραφή υπαλλήλου.' });
+  }
+});
+  // 👇 ΝΕΟ: Επεξεργασία υπαλλήλου
+  /**
+   * @route PUT /api/employees/:employeeId
+   * @desc Ενημέρωση των στοιχείων ενός υπαλλήλου (π.χ. ονόματος).
+   * @access Private
+   */
+  router.put('/:employeeId', verifyToken, async (req, res) => {
+    const { employeeId } = req.params;
+    const { name } = req.body; // Υποθέτουμε ότι μόνο το όνομα μπορεί να επεξεργαστεί
+    const businessId = req.businessId;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ message: 'Το όνομα είναι υποχρεωτικό για την ενημέρωση.' });
+    }
+
+    try {
+      // ✅ Ελέγχει αν ο υπάλληλος ανήκει στην επιχείρηση
+      const [employeeCheck] = await pool.query(
+        'SELECT id FROM employees WHERE id = ? AND business_id = ?',
+        [employeeId, businessId]
+      );
+
+      if (employeeCheck.length === 0) {
+        return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε ή δεν έχετε εξουσιοδότηση.' });
+      }
+
+      // 🔄 Ενημερώνουμε το όνομα του υπαλλήλου
+      const [result] = await pool.query(
+        'UPDATE employees SET name = ? WHERE id = ? AND business_id = ?',
+        [name, employeeId, businessId]
+      );
+
+      if (result.affectedRows === 0) {
+        // Αυτό σημαίνει ότι ο υπάλληλος δεν βρέθηκε ή δεν ενημερώθηκε
+        return res.status(404).json({ message: 'Ο υπάλληλος δεν βρέθηκε ή δεν ενημερώθηκε.' });
+      }
+
+      res.status(200).json({ id: employeeId, name, message: 'Ο υπάλληλος ενημερώθηκε επιτυχώς.' });
+    } catch (err) {
+      console.error('Error updating employee:', err);
+      res.status(500).json({ message: 'Σφάλμα κατά την ενημέρωση υπαλλήλου.' });
+    }
+  });
+
+
+  // 👇 ΔΙΑΔΡΟΜΕΣ ΓΙΑ ΑΝΑΘΕΣΗ ΥΠΗΡΕΣΙΩΝ (ΠΑΚΕΤΩΝ) ΣΕ ΥΠΑΛΛΗΛΟΥΣ (Αυτές παρέμειναν ως είχαν)👇
 
   /**
    * @route GET /api/employees/:employeeId/packages
@@ -65,9 +147,9 @@ export default function (pool) {
       // 🤝 Ανάκτηση όλων των υπηρεσιών που έχουν ανατεθεί σε αυτόν τον υπάλληλο
       const [assignedServices] = await pool.query(
         `SELECT s.id, s.title, s.price, s.duration
-         FROM services s
-         JOIN employee_services ep ON s.id = ep.service_id -- Changed from 'employee_packages' to 'employee_services' and 'package_id' to 'service_id'
-         WHERE ep.employee_id = ? AND s.business_id = ?`,
+          FROM services s
+          JOIN employee_services ep ON s.id = ep.service_id
+          WHERE ep.employee_id = ? AND s.business_id = ?`,
         [employeeId, businessId]
       );
 
@@ -81,12 +163,12 @@ export default function (pool) {
   /**
    * @route POST /api/employees/:employeeId/packages
    * @desc Ανάθεση/ενημέρωση υπηρεσιών (πακέτων) για έναν συγκεκριμένο υπάλληλο.
-   * Αντικαθιστά τις τρέχουσες αναθέσεις υπηρεσιών του υπαλλήλου με την παρεχόμενη λίστα.
+   * Αντικαθισθεί τις τρέχουσες αναθέσεις υπηρεσιών του υπαλλήλου με την παρεχόμενη λίστα.
    * @access Private
    */
   router.post('/:employeeId/packages', verifyToken, async (req, res) => {
     const { employeeId } = req.params;
-    const { packageIds } = req.body; // Το όνομα 'packageIds' στο frontend είναι εντάξει
+    const { packageIds } = req.body;
     const businessId = req.businessId;
 
     if (!Array.isArray(packageIds)) {
@@ -104,7 +186,7 @@ export default function (pool) {
       }
 
       // 🗑 Διαγράφουμε όλες τις υπάρχουσες αναθέσεις για αυτόν τον υπάλληλο
-      await pool.query('DELETE FROM employee_services WHERE employee_id = ?', [employeeId]); // Changed from 'employee_packages' to 'employee_services'
+      await pool.query('DELETE FROM employee_services WHERE employee_id = ?', [employeeId]);
 
       // ➕ Εισάγουμε τις νέες αναθέσεις (αν υπάρχουν)
       if (packageIds.length > 0) {
@@ -119,7 +201,7 @@ export default function (pool) {
 
         const values = packageIds.map(serviceId => [employeeId, serviceId]);
         await pool.query(
-          'INSERT INTO employee_services (employee_id, service_id) VALUES ?', // Changed from 'employee_packages' to 'employee_services' and 'package_id' to 'service_id'
+          'INSERT INTO employee_services (employee_id, service_id) VALUES ?',
           [values]
         );
       }
