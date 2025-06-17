@@ -9,10 +9,9 @@ import employeeRoutes from './routes/employees.js';
 import employeeScheduleRoutes from './routes/employeeSchedule.js';
 import packageRoutes from './routes/packageRoutes.js';
 import appointmentsRoutes from './routes/appointments.js';
-import accountRoutes from './routes/accountRoutes.js'; // Νέα εισαγωγή: routes για τον λογαριασμό
+import accountRoutes from './routes/accountRoutes.js';
 
 dotenv.config();
-
 
 const app = express();
 const port = process.env.PORT || 3333;
@@ -46,10 +45,33 @@ app.get('/test-db', async (req, res) => {
 // 🧭 Use your routes
 app.use('/api/business', businessRoutes(pool));
 app.use('/api/employees', employeeRoutes(pool));
-app.use('/api/employees', employeeScheduleRoutes(pool)); // Αυτό το route χρησιμοποιεί επίσης το '/api/employees' prefix.
+app.use('/api/employees', employeeScheduleRoutes(pool));
 app.use('/api/services', packageRoutes(pool));
 app.use('/api/appointments', appointmentsRoutes(pool));
-app.use('/api/account', accountRoutes(pool)); // Νέα χρήση: routes για τον λογαριασμό κάτω από το /api/account
+app.use('/api/account', accountRoutes(pool));
+
+// 👇 GLOBAL ERROR HANDLING MIDDLEWARE 👇
+// Αυτό το middleware πρέπει να είναι το τελευταίο που δηλώνεται πριν το app.listen()
+app.use((err, req, res, next) => {
+  console.error('Unhandled Error:', err.stack); // Εκτυπώνει το stack trace για debugging
+
+  // Ελέγχουμε αν τα headers έχουν ήδη σταλεί (π.χ. αν κάποιο middleware ή route έχει ήδη στείλει απάντηση)
+  // Σε αυτή την περίπτωση, αφήνουμε το Express να χειριστεί το σφάλμα.
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // Ορίζουμε τον κωδικό κατάστασης και το μήνυμα σφάλματος
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Κάτι πήγε στραβά στον server.';
+
+  // Στέλνουμε την απάντηση σε μορφή JSON
+  res.status(statusCode).json({
+    message: message,
+    // Προαιρετικά: Μπορείτε να στέλνετε περισσότερες λεπτομέρειες σφάλματος μόνο σε περιβάλλον ανάπτυξης
+    // error: process.env.NODE_ENV === 'production' ? {} : err
+  });
+});
 
 // 🚀 Start the server
 app.listen(port, () => {
