@@ -45,7 +45,7 @@ app.get('/test-db', async (req, res) => {
 // 🧭 Use your routes
 app.use('/api/business', businessRoutes(pool));
 app.use('/api/employees', employeeRoutes(pool));
-app.use('/api/employees', employeeScheduleRoutes(pool));
+app.use('/api/employeesSchedule', employeeScheduleRoutes(pool));
 app.use('/api/services', packageRoutes(pool));
 app.use('/api/appointments', appointmentsRoutes(pool));
 app.use('/api/account', accountRoutes(pool));
